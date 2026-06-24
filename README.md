@@ -6,8 +6,9 @@
 
 **Integrantes:**
 
-* [Nombre Integrante 1]
-* [Nombre Integrante 2]
+    * Agustin Tapia
+    * Nicolas Soto
+    * Julian Toro
 
 ---
 
