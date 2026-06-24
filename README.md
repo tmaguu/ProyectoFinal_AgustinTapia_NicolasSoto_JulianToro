@@ -361,21 +361,31 @@ La estimación obtenida es utilizada para la detección robusta de obstáculos y
 
 # 8. Resultados Obtenidos
 
-Las métricas se obtuvieron a partir del archivo:
+Las métricas se obtuvieron a partir del archivo csv de cada escenario:
 
-```text
-sensor_log.csv
-```
 
-exportado durante la simulación.
+### Análisis de Trayectos - `sensor_log.csv`
 
-| Métrica                   | Escenario Simple       | Escenario Complejo     |
-| ------------------------- | ---------------------- | ---------------------- |
-| Tiempo total de ejecución | Completar con medición | Completar con medición |
-| Waypoints recorridos      | Completar              | Completar              |
-| Error de llegada          | < 0.06 m               | < 0.06 m               |
-| Colisiones críticas       | 0                      | 0                      |
-| Estado final              | Detenido               | Detenido               |
+| Waypoint | Registros | Tiempo Inicial (s) | Tiempo Final (s) | Duración (s) | Promedio X | Promedio Y | Promedio Phi (rad) | Promedio Front |
+| :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 57 | 0.128 | 3.712 | 3.584 | 0.3738 | -0.5432 | 1.9700 | 143.9065 |
+| **2** | 78 | 3.776 | 8.704 | 4.928 | 0.3741 | -0.2734 | 0.8529 | 148.8324 |
+| **3** | 69 | 8.768 | 13.120 | 4.352 | 0.3702 | -0.1068 | 1.8360 | 143.9704 |
+| **4** | 66 | 13.184 | 17.344 | 4.160 | 0.3745 | 0.2341 | 1.8934 | 124.9643 |
+| **5** | 43 | 17.408 | 20.096 | 2.688 | 0.3720 | 0.4403 | 1.5708 | 77.8417 |
+| **6** | 15 | 20.160 | 21.056 | 0.896 | 0.3744 | 0.6112 | 1.5639 | 70.7557 |
+
+### Análisis de Trayectos - `sensor_log11.csv`
+
+| Waypoint | Registros | Tiempo Inicial (s) | Tiempo Final (s) | Duración (s) | Promedio X | Promedio Y | Promedio Phi (rad) | Promedio Front |
+| :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 33 | 0.128 | 2.176 | 2.048 | 0.3750 | -0.5307 | 1.5707 | 51.4862 |
+| **2** | 42 | 2.240 | 4.864 | 2.624 | 0.3750 | -0.3097 | 1.5708 | 74.2248 |
+| **3** | 43 | 4.928 | 7.616 | 2.688 | 0.3750 | -0.0592 | 1.5709 | 71.6065 |
+| **4** | 74 | 7.680 | 12.352 | 4.672 | 0.3744 | 0.2129 | 1.6337 | 162.3152 |
+| **5** | 65 | 12.416 | 16.512 | 4.096 | 0.3710 | 0.3993 | 1.8479 | 140.5081 |
+| **6** | 42 | 16.576 | 19.200 | 2.624 | 0.3744 | 0.6916 | 1.5654 | 73.4226 |
+| **7** | 33 | 19.264 | 21.312 | 2.048 | 0.3234 | 0.8375 | 2.6816 | 70.2449 |
 
 ---
 
