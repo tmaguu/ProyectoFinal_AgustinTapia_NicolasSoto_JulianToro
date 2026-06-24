@@ -91,23 +91,74 @@ Función calcular_planificacion_bfs(inicio, meta):
 
 ## 7. Relación Explícita con los Laboratorios 1 y 2
 
-### Vínculo con Laboratorio 1 (Odometría Completa)
+### Vínculo con el Laboratorio 1 (Odometría Diferencial)
 
-Se extraen los deltas de posición angular de los encoders (`ΔθL`, `ΔθR`) y mediante el modelo cinemático diferencial directo se integra paso a paso la pose del robot (`x`, `y`, `φ`) usando la aproximación de Euler:
+El proyecto reutiliza directamente el modelo de odometría diferencial desarrollado en el Laboratorio 1. A partir de las lecturas de los encoders de las ruedas izquierda y derecha se calculan los desplazamientos incrementales de cada rueda:
 
 ```text
-ΔS = (r · (ΔθR + ΔθL)) / 2
-
-Δφ = (r · (ΔθR - ΔθL)) / L
+dist_left = R · ΔθL
+dist_right = R · ΔθR
 ```
 
-### Vínculo con Laboratorio 2 (Filtrado y Percepción Frontal)
+donde `R = 0.0205 m` corresponde al radio de las ruedas del e-puck.
 
-Las lecturas crudas de los sensores frontales se suavizan mediante un filtro de promedio móvil exponencial (EMA) con `α = 0.85`.
+Posteriormente se obtiene el avance lineal del robot y la variación angular de su orientación:
 
-Posteriormente, se procesan mediante un **Filtro de Kalman de un estado** (`Q = 1.0`, `R = 15.0`) para obtener una estimación robusta de la distancia frontal, activando la evasión local reactiva por histéresis si el rumbo global se ve bloqueado imprevistamente.
+```text
+ΔS = (dist_left + dist_right) / 2
 
----
+Δφ = (dist_right - dist_left) / L
+```
+
+donde `L = 0.053 m` representa la distancia entre ruedas.
+
+Utilizando estas ecuaciones se actualiza continuamente la pose completa del robot:
+
+```text
+(x, y, φ)
+```
+
+mediante integración incremental, permitiendo estimar en tiempo real la posición y orientación del e-puck dentro del entorno de simulación. Esta información constituye la base para calcular la distancia restante hacia la meta y orientar el robot durante la navegación autónoma.
+
+### Vínculo con el Laboratorio 2 (Filtrado Sensorial y Estimación mediante Kalman)
+
+El sistema incorpora la arquitectura de percepción desarrollada en el Laboratorio 2 para mejorar la robustez frente al ruido de los sensores infrarrojos.
+
+Las mediciones frontales obtenidas desde los sensores `ps0` y `ps7` son fusionadas seleccionando la lectura más representativa del obstáculo frontal. Posteriormente se aplica un filtro de Promedio Móvil Exponencial (EMA) con parámetro:
+
+```text
+α = 0.85
+```
+
+según la ecuación:
+
+```text
+front_filtered =
+α · front_filtered +
+(1 - α) · front_raw
+```
+
+La señal suavizada es procesada mediante un Filtro de Kalman unidimensional configurado con:
+
+```text
+Q = 1.0
+R = 15.0
+```
+
+El modelo predictivo utiliza la información proveniente de la odometría para estimar la evolución esperada de la distancia observada, mientras que las mediciones filtradas corrigen dicha predicción. Como resultado se obtiene una estimación más estable de la distancia frontal:
+
+```text
+estimated_distance
+```
+
+la cual es utilizada por el controlador reactivo para detectar obstáculos y activar maniobras de evasión local cuando la trayectoria hacia la meta se encuentra bloqueada.
+
+### Integración en el Proyecto Final
+
+Los conocimientos obtenidos en ambos laboratorios se integran en una arquitectura híbrida de navegación. La odometría diferencial proporciona una estimación continua de la pose del robot y permite calcular el rumbo hacia la meta global, mientras que el sistema de percepción basado en EMA y Filtro de Kalman supervisa el entorno inmediato para detectar obstáculos.
+
+Cuando el camino se encuentra despejado, el robot sigue la dirección de la meta mediante un controlador proporcional sobre el error angular. En presencia de obstáculos, se activa un modo de evasión local basado en los sensores laterales, permitiendo rodear el obstáculo y retomar posteriormente la trayectoria principal. Esta combinación mejora significativamente la robustez y estabilidad de la navegación autónoma.
+
 
 ## 8. Resultados Obtenidos y Métricas de Desempeño
 
