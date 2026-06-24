@@ -415,17 +415,6 @@ Agregar enlace al video:
 
 ---
 
-## Gráfico de Trayectoria
-
-Agregar imágenes obtenidas desde los datos registrados:
-
-```text
-images/trayectoria_simple.png
-images/trayectoria_compleja.png
-```
-
----
-
 # 10. Instrucciones de Ejecución
 
 Clonar el repositorio:
