@@ -158,13 +158,13 @@ File → Open World
 4. Selecciona:
 
 ```text
-worlds/escenario_simple.wbt
+escenario_simple1.wbt
 ```
 
 o
 
 ```text
-worlds/escenario_complejo.wbt
+escenario_complejo.wbt
 ```
 
 5. En el editor de Webots abre:
