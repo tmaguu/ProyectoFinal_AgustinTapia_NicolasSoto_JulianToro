@@ -1,50 +1,38 @@
-# Proyecto Final
+# Proyecto Final: Navegación Autónoma con Planificación de Rutas BFS en Webots
 
-**Asignatura:** Robótica y Sistemas Autónomos 
-
-**Integrantes:** Agustin Tapia, Julian Toro, Nicolas Soto
+**Asignatura:** Robótica y Sistemas Autónomos (ICI 4150)  
+**Carrera:** Ingeniería Civil Informática  
+**Institución:** Pontificia Universidad Católica de Valparaíso (PUCV)  
+**Integrantes:** * Agustin Tapia
+* Julian Toro
+* Nicolas Soto
 
 ---
 
 ## 1. Línea Seleccionada
-
-* **Línea A: Planificación de Rutas** (Algoritmo Búsqueda en Anchura - BFS sobre mapa discreto).
+* **Línea A: Planificación de Rutas** (Algoritmo Búsqueda en Anchura - BFS sobre mapa discreto con soporte de Supervisor).
 
 ## 2. Objetivo del Proyecto
-
-Diseñar, implementar y evaluar un sistema de navegación autónoma para un robot móvil diferencial e-puck en el simulador Webots. El sistema debe ser capaz de representar el entorno de forma discreta, calcular la ruta matemáticamente óptima utilizando el algoritmo BFS en tiempo de ejecución, y ejecutarla de forma segura integrando técnicas de filtrado sensorial y odometría diferencial.
+Diseñar, implementar y evaluar en el simulador Webots un sistema de navegación autónoma para un robot móvil diferencial e-puck. El sistema representa el entorno de forma discreta a una resolución real de 25 cm, calcula la ruta óptima mediante Búsqueda en Anchura (BFS) en tiempo de ejecución de manera genérica para múltiples escenarios, y controla el desplazamiento del robot integrando odometría cinemática y una estrategia híbrida de volteo reactivo local frente a colisiones inminentes.
 
 ## 3. Descripción del Robot, Sensores y Actuadores
-
-* **Plataforma:** Robot diferencial e-puck.
-* **Actuadores (Motores):** Dos servomotores configurados en modo de velocidad continua (`left wheel motor` y `right wheel motor`) con una saturación física máxima de `6.28 rad/s`.
-* **Sensores de Posición (Encoders):** `left wheel sensor` y `right wheel sensor` activados a un paso de muestreo (`TIME_STEP`) de `64 ms` para medir la rotación angular acumulada.
-* **Sensores de Distancia:** Arreglo infrarrojo integrado (`ps0` a `ps7`) utilizando lecturas analógicas escaladas para la detección local de obstáculos.
+* **Plataforma:** Robot diferencial e-puck simulado con el parámetro `supervisor` configurado en `TRUE`.
+* **Actuadores (Motores):** Dos servomotores rotacionales continuos (`left wheel motor` y `right wheel motor`) saturados a una velocidad límite de $6.28\text{ rad/s}$.
+* **Sensores de Posición (Encoders):** Dispositivos de lectura angular en las ruedas (`left wheel sensor` y `right wheel sensor`) con muestreo continuo cada $64\text{ ms}$.
+* **Sensores de Percepción:** Arreglo infrarrojo analógico perimetral, priorizando los componentes frontales (`ps0`, `ps7`) y laterales (`ps1`, `ps6`) para alimentar las decisiones locales de navegación.
 
 ## 4. Descripción de los Escenarios de Prueba
-
-La arena de simulación cuenta con un área física total de `2.0 × 2.0 m`. El suelo posee un diseño visual con un *floor tile size* de `0.5 × 0.5 m`, discretizando el espacio en una cuadrícula exacta de `4 × 4` baldosas.
-
-### Escenario Simple
-
-Entorno con un obstáculo aislado en la baldosa central `{1,1}`. Permite evaluar la generación de una ruta directa en diagonal desde el origen `{0,0}` hasta el destino intermedio `{2,0}`.
-
-### Escenario Complejo
-
-Laberinto estructurado mediante muros horizontales intercalados (filas de bloques en `{1,1}`, `{1,2}`, `{1,3}` y `{3,1}`, `{3,2}`, `{3,3}`). Obliga al robot a navegar por pasillos estrechos periféricos, forzando giros cerrados de 90° y poniendo a prueba la estabilidad de la odometría.
+La arena de simulación física tiene un área tridimensional de $2.0 \times 2.0\text{ metros}$. Su suelo cuenta con un patrón visual de tablero de ajedrez (*floor tile size*) de $0.25 \times 0.25\text{ metros}$, discretizando el plano en una grilla exacta de $8 \times 8$ celdas.
+* **Escenario Simple:** Cuenta con un solo obstáculo de madera central que bloquea un área de $2 \times 2$ baldosas (filas 4 y 5, columnas 3 y 4). Evalúa la capacidad de evasión diagonal básica.
+* **Escenario Complejo:** Además de la caja central, incorpora muros de bloqueo horizontales al fondo (filas 6 y 7, columnas 1, 2 y 6, 7). Forzar al e-puck a ingresar en pasillos estrechos periféricos y realizar giros cerrados a través de un cuello de botella central en `{7, 4}`.
 
 ## 5. Explicación del Algoritmo Implementado
-
-El controlador ejecuta el algoritmo **BFS (Breadth-First Search)** embebido nativamente en C al arrancar la simulación:
-
-1. **Modelación Espacial:** El entorno se mapea en una matriz estática de `4 × 4` donde los espacios libres son `0` y los obstáculos físicos son `1`.
-2. **Exploración:** Una cola estática gestiona la expansión de nodos adyacentes (Arriba, Abajo, Izquierda, Derecha). Al alcanzar la celda objetivo, se reconstruye el camino inverso mediante punteros de asignación de padres.
-3. **Conversión Cinemática:** Los índices discretos de la matriz (Fila, Columna) se transforman al espacio continuo de Webots usando:
-
-```text
-X_webots = (Columna × 0.5) - 1.0 + 0.25
-Y_webots = (Fila × 0.5) - 1.0 + 0.25
-```
+El controlador unificado implementa un enfoque jerárquico autónomo:
+1. **Detección Dinámica del Entorno:** Mediante `wb_robot_get_world_path()`, el script identifica si la cadena de texto contiene el nombre del escenario ("complejo" o "simple") y copia en memoria la matriz de ocupación real de $8 \times 8$ baldosas correspondiente.
+2. **Planificación Global (BFS Nivo):** Explora los nodos transitables adyacentes utilizando una estructura de cola. Una vez que conecta el inicio `{1, 5}` con la meta `{7, 4}`, decodifica la ruta de atrás hacia adelante y realiza la conversión matemática al plano continuo de Webots:
+   $$X_{\text{webots}} = (\text{Columna} \times 0.25) - 1.0 + 0.125$$
+   $$Y_{\text{webots}} = (\text{Fila} \times 0.25) - 1.0 + 0.125$$
+3. **Navegación Local y Volteo (Evasión Reactiva):** Si el Filtro de Kalman detecta que la distancia al frente supera el umbral crítico (`FRONT_THRESHOLD = 250.0`), el robot interrumpe el seguimiento del waypoint global y entra en modo de volteo reactivo, aplicando velocidades opuestas a los motores para pivotar sobre su propio eje hasta que las lecturas se estabilizan por debajo del umbral seguro.
 
 ---
 
@@ -52,42 +40,27 @@ Y_webots = (Fila × 0.5) - 1.0 + 0.25
 
 ```text
 Función calcular_planificacion_bfs(inicio, meta):
-    Inicializar matriz de visitados en FALSO
-    Inicializar matriz de padres en (-1, -1)
-    Crear ColaEstática e insertar nodo 'inicio'
+    Inicializar visitados en FALSO y padres en (-1, -1)
+    Crear Cola y encolar nodo 'inicio'
     Marcar 'inicio' como visitado
 
-    Mientras ColaEstática no esté vacía:
-        Celda_Actual = Desencolar(ColaEstática)
+    Mientras Cola no esté vacía:
+        Actual = Desencolar(Cola)
+        Si Actual == meta:
+            Meta_Encontrada = VERDADERO; Romper Bucle
 
-        Si Celda_Actual == meta:
-            Meta_Encontrada = VERDADERO
-            Romper bucle
-
-        Para cada vecino (Arriba, Abajo, Izquierda, Derecha):
-            Si vecino está dentro de los límites (4x4)
-               Y no visitado
-               Y grilla[vecino] == 0:
-
-                Marcar vecino como visitado
-                padre[vecino] = Celda_Actual
-                Encolar(ColaEstática, vecino)
+        Para cada vecino en direcciones (Arriba, Abajo, Izquierda, Derecha):
+            Si vecino dentro de límites (8x8) Y grilla[vecino] == 0 Y no visitado:
+                visitado[vecino] = VERDADERO
+                padre[vecino] = Actual
+                Encolar(Cola, vecino)
 
     Si Meta_Encontrada:
-        Reconstruir camino inverso desde 'meta'
-        usando matriz de padres
-
-        Convertir celdas a coordenadas métricas
-        aplicando RESOLUTION (0.5)
-        y OFFSET (-1.0)
-
+        Reconstruir camino inverso guardando en ruta_global
+        Convertir celdas discretas a coordenadas de Webots (Metros) aplicando RESOLUTION(0.25) y OFFSET(-1.0)
         Retornar VERDADERO
-
     Sino:
         Retornar FALSO
-```
-
----
 
 ## 7. Relación Explícita con los Laboratorios 1 y 2
 
