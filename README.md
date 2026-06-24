@@ -1,4 +1,4 @@
-# Proyecto Final: Navegación Autónoma con Planificación de Rutas BFS en Webots
+# Proyecto Final
 
 **Asignatura:** Robótica y Sistemas Autónomos 
 
