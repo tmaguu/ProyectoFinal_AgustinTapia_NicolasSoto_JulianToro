@@ -37,3 +37,28 @@ El controlador ejecuta el algoritmo **BFS (Breadth-First Search)** embebido nati
 
 ## 6. Pseudocódigo de la Solución
 
+```text
+Función calcular_planificacion_bfs(inicio, meta):
+    Inicializar matriz de visitados en FALSO
+    Inicializar matriz de padres en (-1, -1)
+    Crear ColaEstática e insertar nodo 'inicio'
+    Marcar 'inicio' como visitado
+
+    Mientras ColaEstática no esté vacía:
+        Celda_Actual = Desencolar(ColaEstática)
+        Si Celda_Actual == meta:
+            Meta_Encontrada = VERDADERO
+            Romper bucle
+
+        Para cada vecino (Arriba, Abajo, Izquierda, Derecha):
+            Si vecino está dentro de los límites (4x4) Y no visitado Y grilla[vecino] == 0:
+                Marcar vecino como visitado
+                padre[vecino] = Celda_Actual
+                Encolar(ColaEstática, vecino)
+
+    Si Meta_Encontrada:
+        Reconstruir camino inverso desde 'meta' usando matriz de padres
+        Convertir celdas a coordenadas métricas aplicando RESOLUTION (0.5) y OFFSET (-1.0)
+        Retornar VERDADERO
+    Sino:
+        Retornar FALSO
