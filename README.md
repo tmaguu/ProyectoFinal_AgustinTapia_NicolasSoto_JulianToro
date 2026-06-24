@@ -1,14 +1,8 @@
 # Proyecto Final: Navegación Autónoma con Planificación de Rutas BFS en Webots
 
-**Asignatura:** Robótica y Sistemas Autónomos (ICI 4150)
+**Asignatura:** Robótica y Sistemas Autónomos 
 
-**Carrera:** Ingeniería Civil Informática
-
-**Institución:** Pontificia Universidad Católica de Valparaíso (PUCV)
-
-**Integrantes:**
-
-Agustin Tapia, Julian Toro, Nicolas Soto
+**Integrantes:** Agustin Tapia, Julian Toro, Nicolas Soto
 
 ---
 
