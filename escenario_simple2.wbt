@@ -1,0 +1,49 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/gctronic/e-puck/protos/E-puck.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/factory/containers/protos/CardboardBox.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/factory/containers/protos/WoodenBox.proto"
+
+WorldInfo {
+  info [
+    "The model of the E-puck robot"
+  ]
+  title "E-puck simulation"
+}
+Viewpoint {
+  orientation -0.20367871242051327 -0.25751369739890495 0.9445642793154243 4.218827696358481
+  position 1.4769950626664956 3.210293716185433 2.3244162335967045
+  follow "e-puck"
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+RectangleArena {
+  translation 0.35 -0.5 0
+  floorSize 2 2
+  wallThickness 0.1
+}
+E-puck {
+  translation 0 0 -6.39419e-05
+  rotation 0.001217450038944092 0.0006736750215496827 0.9999990319882156 -1.0835753071795864
+  controller "e-puck_laboratorio_2"
+  supervisor TRUE
+}
+CardboardBox {
+  translation 0.24 -0.14 0.1
+  rotation 0 1 0 4.6928e-06
+  size 0.2 0.2 0.2
+}
+WoodenBox {
+  translation 0.45 -0.82 0.15
+  size 0.2 0.2 0.3
+}
+WoodenBox {
+  translation 0.73 -0.4 0.09
+  name "wooden box(1)"
+  size 0.2 0.2 0.2
+}
