@@ -1,220 +1,462 @@
 # Proyecto Final: Navegación Autónoma con Planificación de Rutas BFS en Webots
 
-**Asignatura:** Robótica y Sistemas Autónomos  
-**Integrantes:** 
-   * Agustin Tapia
-   * Julian Toro
-   * Nicolas Soto
+**Asignatura:** Robótica y Sistemas Autónomos (ICI 4150)
+**Carrera:** Ingeniería Civil Informática
+**Institución:** Pontificia Universidad Católica de Valparaíso (PUCV)
+
+**Integrantes:**
+
+* [Nombre Integrante 1]
+* [Nombre Integrante 2]
 
 ---
 
-## 1. Línea Seleccionada
-* **Línea A: Planificación de Rutas** (Algoritmo Búsqueda en Anchura - BFS sobre mapa discreto con soporte de Supervisor).
+# 1. Línea Seleccionada
 
-## 2. Objetivo del Proyecto
-Diseñar, implementar y evaluar en el simulador Webots un sistema de navegación autónoma para un robot móvil diferencial e-puck. El sistema representa el entorno de forma discreta a una resolución real de 25 cm, calcula la ruta óptima mediante Búsqueda en Anchura (BFS) en tiempo de ejecución de manera genérica para múltiples escenarios, y controla el desplazamiento del robot integrando odometría cinemática y una estrategia híbrida de volteo reactivo local frente a colisiones inminentes.
+**Línea A: Planificación de Rutas**
 
-## 3. Descripción del Robot, Sensores y Actuadores
-* **Plataforma:** Robot diferencial e-puck simulado con el parámetro `supervisor` configurado en `TRUE`.
-* **Actuadores (Motores):** Dos servomotores rotacionales continuos (`left wheel motor` y `right wheel motor`) saturados a una velocidad límite de $6.28\text{ rad/s}$.
-* **Sensores de Posición (Encoders):** Dispositivos de lectura angular en las ruedas (`left wheel sensor` y `right wheel sensor`) con muestreo continuo cada $64\text{ ms}$.
-* **Sensores de Percepción:** Arreglo infrarrojo analógico perimetral, priorizando los componentes frontales (`ps0`, `ps7`) y laterales (`ps1`, `ps6`) para alimentar las decisiones locales de navegación.
-
-## 4. Descripción de los Escenarios de Prueba
-La arena de simulación física tiene un área tridimensional de $2.0 \times 2.0\text{ metros}$. Su suelo cuenta con un patrón visual de tablero de ajedrez (*floor tile size*) de $0.25 \times 0.25\text{ metros}$, discretizando el plano en una grilla exacta de $8 \times 8$ celdas.
-* **Escenario Simple:** Cuenta con un solo obstáculo de madera central que bloquea un área de $2 \times 2$ baldosas (filas 4 y 5, columnas 3 y 4). Evalúa la capacidad de evasión diagonal básica.
-* **Escenario Complejo:** Además de la caja central, incorpora muros de bloqueo horizontales al fondo (filas 6 y 7, columnas 1, 2 y 6, 7). Forzar al e-puck a ingresar en pasillos estrechos periféricos y realizar giros cerrados a través de un cuello de botella central en `{7, 4}`.
-
-## 5. Explicación del Algoritmo Implementado
-El controlador unificado implementa un enfoque jerárquico autónomo:
-1. **Detección Dinámica del Entorno:** Mediante `wb_robot_get_world_path()`, el script identifica si la cadena de texto contiene el nombre del escenario ("complejo" o "simple") y copia en memoria la matriz de ocupación real de $8 \times 8$ baldosas correspondiente.
-2. **Planificación Global (BFS Nivo):** Explora los nodos transitables adyacentes utilizando una estructura de cola. Una vez que conecta el inicio `{1, 5}` con la meta `{7, 4}`, decodifica la ruta de atrás hacia adelante y realiza la conversión matemática al plano continuo de Webots:
-   $$X_{\text{webots}} = (\text{Columna} \times 0.25) - 1.0 + 0.125$$
-   $$Y_{\text{webots}} = (\text{Fila} \times 0.25) - 1.0 + 0.125$$
-3. **Navegación Local y Volteo (Evasión Reactiva):** Si el Filtro de Kalman detecta que la distancia al frente supera el umbral crítico (`FRONT_THRESHOLD = 250.0`), el robot interrumpe el seguimiento del waypoint global y entra en modo de volteo reactivo, aplicando velocidades opuestas a los motores para pivotar sobre su propio eje hasta que las lecturas se estabilizan por debajo del umbral seguro.
+El proyecto implementa un sistema de navegación autónoma basado en el algoritmo Breadth-First Search (BFS), complementado con navegación reactiva local mediante sensores infrarrojos y estimación de estado utilizando técnicas de filtrado.
 
 ---
 
-## 6. Pseudocódigo de la Solución
+# 2. Objetivo del Proyecto
+
+Diseñar e implementar un sistema de navegación autónoma para el robot diferencial e-puck en el simulador Webots, capaz de:
+
+* Representar el entorno mediante una grilla discreta.
+* Calcular rutas óptimas utilizando BFS.
+* Navegar autónomamente entre una posición inicial y una meta.
+* Evitar obstáculos mediante control reactivo basado en sensores.
+* Utilizar odometría diferencial para estimar la pose del robot.
+* Incorporar técnicas de filtrado para mejorar la calidad de las mediciones.
+
+---
+
+# 3. Descripción del Robot, Sensores y Actuadores
+
+## Plataforma Robótica
+
+Se utilizó el robot móvil diferencial e-puck disponible en Webots.
+
+### Actuadores
+
+El robot posee dos motores diferenciales:
+
+* Left Wheel Motor
+* Right Wheel Motor
+
+Configurados en modo de velocidad continua.
+
+Velocidad máxima:
+
+[
+\omega_{max}=6.28\ rad/s
+]
+
+---
+
+## Sensores de Posición
+
+Para estimar el movimiento del robot se utilizan:
+
+* Left Wheel Sensor
+* Right Wheel Sensor
+
+Estos encoders permiten obtener el desplazamiento angular acumulado de cada rueda.
+
+---
+
+## Sensores de Distancia
+
+Se utilizan los sensores infrarrojos:
+
+* ps0 (frontal derecho)
+* ps7 (frontal izquierdo)
+* ps1 (lateral derecho)
+* ps6 (lateral izquierdo)
+
+Estos sensores son utilizados para:
+
+* Detección de obstáculos.
+* Activación de navegación reactiva.
+* Estimación de distancia frontal filtrada.
+
+---
+
+# 4. Descripción de los Escenarios de Prueba
+
+La arena utilizada posee dimensiones físicas de:
+
+[
+2.0 \times 2.0\ m
+]
+
+El espacio se discretiza en una grilla de:
+
+[
+8 \times 8
+]
+
+donde cada celda representa:
+
+[
+0.25 \times 0.25\ m
+]
+
+---
+
+## Escenario Simple
+
+Contiene una caja de madera ubicada aproximadamente en el centro del entorno.
+
+La matriz de ocupación contiene una única región bloqueada de 2×2 celdas.
+
+El objetivo es evaluar la capacidad del algoritmo BFS para encontrar una ruta alternativa alrededor del obstáculo central.
+
+---
+
+## Escenario Complejo
+
+Incluye:
+
+* La caja central del escenario simple.
+* Obstáculos laterales adicionales.
+* Corredores estrechos.
+
+Este escenario exige una mayor cantidad de cambios de dirección y pone a prueba:
+
+* El seguimiento de waypoints.
+* La precisión de la odometría.
+* El comportamiento reactivo ante obstáculos.
+
+---
+
+# 5. Explicación del Algoritmo Implementado
+
+El sistema implementa una arquitectura híbrida compuesta por:
+
+1. Planificación global mediante BFS.
+2. Navegación local reactiva basada en sensores.
+
+---
+
+## 5.1 Selección Automática del Escenario
+
+Al iniciar la simulación, el controlador obtiene la ruta del mundo abierto mediante:
+
+```c
+wb_robot_get_world_path()
+```
+
+Si el nombre contiene la palabra:
 
 ```text
-Función calcular_planificacion_bfs(inicio, meta):
-    Inicializar visitados en FALSO y padres en (-1, -1)
-    Crear Cola y encolar nodo 'inicio'
-    Marcar 'inicio' como visitado
+complejo
+```
 
-    Mientras Cola no esté vacía:
-        Actual = Desencolar(Cola)
-        Si Actual == meta:
-            Meta_Encontrada = VERDADERO; Romper Bucle
+se carga la matriz de ocupación correspondiente al escenario complejo.
 
-        Para cada vecino en direcciones (Arriba, Abajo, Izquierda, Derecha):
-            Si vecino dentro de límites (8x8) Y grilla[vecino] == 0 Y no visitado:
-                visitado[vecino] = VERDADERO
-                padre[vecino] = Actual
-                Encolar(Cola, vecino)
+En caso contrario se utiliza automáticamente el escenario simple.
 
-    Si Meta_Encontrada:
-        Reconstruir camino inverso guardando en ruta_global
-        Convertir celdas discretas a coordenadas de Webots (Metros) aplicando RESOLUTION(0.25) y OFFSET(-1.0)
-        Retornar VERDADERO
+De esta forma un único controlador puede operar correctamente en ambos mundos.
+
+---
+
+## 5.2 Planificación Global con BFS
+
+La planificación se realiza sobre una matriz de ocupación de 8×8.
+
+Cada celda puede contener:
+
+* 0 → espacio libre.
+* 1 → obstáculo.
+
+La búsqueda utiliza conectividad de cuatro vecinos:
+
+* Arriba
+* Abajo
+* Izquierda
+* Derecha
+
+Una vez encontrada la meta se reconstruye el camino utilizando una matriz de padres.
+
+---
+
+## 5.3 Generación de Waypoints
+
+Las celdas calculadas por BFS se transforman a coordenadas métricas de Webots mediante:
+
+[
+x=(columna \cdot 0.25)-1.0+0.125
+]
+
+[
+y=(fila \cdot 0.25)-1.0+0.125
+]
+
+Cada punto generado corresponde a un waypoint de navegación.
+
+---
+
+## 5.4 Navegación Local Reactiva
+
+Mientras el robot sigue la ruta BFS, se supervisa constantemente la distancia frontal estimada.
+
+Cuando se detecta una posible colisión:
+
+[
+distancia > FRONT_THRESHOLD
+]
+
+se activa el modo de evasión.
+
+El robot gira hacia el lado con mayor espacio libre según las mediciones laterales.
+
+Cuando la distancia vuelve a una condición segura:
+
+[
+distancia < CLEAR_THRESHOLD
+]
+
+se retorna al seguimiento normal de la trayectoria global.
+
+---
+
+# 6. Pseudocódigo de la Solución
+
+```text
+Inicio
+
+Detectar escenario abierto
+
+Si escenario contiene "complejo":
+    cargar mapa_complejo
+Sino:
+    cargar mapa_simple
+
+Definir inicio y meta
+
+Ejecutar BFS
+
+Si no existe camino:
+    terminar programa
+
+Reconstruir camino
+
+Convertir camino a waypoints métricos
+
+Mientras la simulación esté activa:
+
+    Leer sensores IR
+
+    Aplicar filtro EMA
+
+    Aplicar filtro de Kalman
+
+    Actualizar odometría diferencial
+
+    Obtener waypoint actual
+
+    Si waypoint alcanzado:
+        avanzar al siguiente
+
+    Si meta alcanzada:
+        detener motores
+
+    Calcular error angular
+
+    Si existe obstáculo frontal:
+        activar evasión
+        girar hacia lado más despejado
     Sino:
-        Retornar FALSO
+        seguir waypoint mediante control proporcional
 
-## 7. Relación Explícita con los Laboratorios 1 y 2
+    Registrar telemetría
 
-### Vínculo con el Laboratorio 1 (Odometría Diferencial)
-
-El proyecto reutiliza directamente el modelo de odometría diferencial desarrollado en el Laboratorio 1. A partir de las lecturas de los encoders de las ruedas izquierda y derecha se calculan los desplazamientos incrementales de cada rueda:
-
-```text
-dist_left = R · ΔθL
-dist_right = R · ΔθR
+Fin Mientras
 ```
-
-donde `R = 0.0205 m` corresponde al radio de las ruedas del e-puck.
-
-Posteriormente se obtiene el avance lineal del robot y la variación angular de su orientación:
-
-```text
-ΔS = (dist_left + dist_right) / 2
-
-Δφ = (dist_right - dist_left) / L
-```
-
-donde `L = 0.053 m` representa la distancia entre ruedas.
-
-Utilizando estas ecuaciones se actualiza continuamente la pose completa del robot:
-
-```text
-(x, y, φ)
-```
-
-mediante integración incremental, permitiendo estimar en tiempo real la posición y orientación del e-puck dentro del entorno de simulación. Esta información constituye la base para calcular la distancia restante hacia la meta y orientar el robot durante la navegación autónoma.
-
-### Vínculo con el Laboratorio 2 (Filtrado Sensorial y Estimación mediante Kalman)
-
-El sistema incorpora la arquitectura de percepción desarrollada en el Laboratorio 2 para mejorar la robustez frente al ruido de los sensores infrarrojos.
-
-Las mediciones frontales obtenidas desde los sensores `ps0` y `ps7` son fusionadas seleccionando la lectura más representativa del obstáculo frontal. Posteriormente se aplica un filtro de Promedio Móvil Exponencial (EMA) con parámetro:
-
-```text
-α = 0.85
-```
-
-según la ecuación:
-
-```text
-front_filtered =
-α · front_filtered +
-(1 - α) · front_raw
-```
-
-La señal suavizada es procesada mediante un Filtro de Kalman unidimensional configurado con:
-
-```text
-Q = 1.0
-R = 15.0
-```
-
-El modelo predictivo utiliza la información proveniente de la odometría para estimar la evolución esperada de la distancia observada, mientras que las mediciones filtradas corrigen dicha predicción. Como resultado se obtiene una estimación más estable de la distancia frontal:
-
-```text
-estimated_distance
-```
-
-la cual es utilizada por el controlador reactivo para detectar obstáculos y activar maniobras de evasión local cuando la trayectoria hacia la meta se encuentra bloqueada.
-
-### Integración en el Proyecto Final
-
-Los conocimientos obtenidos en ambos laboratorios se integran en una arquitectura híbrida de navegación. La odometría diferencial proporciona una estimación continua de la pose del robot y permite calcular el rumbo hacia la meta global, mientras que el sistema de percepción basado en EMA y Filtro de Kalman supervisa el entorno inmediato para detectar obstáculos.
-
-Cuando el camino se encuentra despejado, el robot sigue la dirección de la meta mediante un controlador proporcional sobre el error angular. En presencia de obstáculos, se activa un modo de evasión local basado en los sensores laterales, permitiendo rodear el obstáculo y retomar posteriormente la trayectoria principal. Esta combinación mejora significativamente la robustez y estabilidad de la navegación autónoma.
-
-
-## 8. Resultados Obtenidos y Métricas de Desempeño
-
-A partir de los archivos de telemetría exportados en tiempo de ejecución (`sensor_log.csv`), se exponen las métricas cuantitativas reales del desempeño del e-puck:
-
-| Métrica de Evaluación              | Escenario Simple (`copia.csv`)  | Escenario Complejo (`copia (2).csv`) |
-| ---------------------------------- | ------------------------------- | ------------------------------------ |
-| **Tiempo de Ejecución Total**      | **16.064 segundos**             | **26.560 segundos**                  |
-| **Cantidad de Muestras/Registros** | 250 muestras                    | 414 muestras                         |
-| **Tolerancia de Llegada a Meta**   | Menor a 0.06 metros             | Menor a 0.06 metros                  |
-| **Número de Colisiones Críticas**  | 0                               | 0                                    |
-| **Estado Final de Motores**        | Detenido Absoluto (`0.0 rad/s`) | Detenido Absoluto (`0.0 rad/s`)      |
-
-### Análisis de los Gráficos de Trayectoria
-
-* **Trayectoria Simple:** El robot avanza de forma fluida describiendo una curva limpia directa hacia la baldosa destino, desacelerando proporcionalmente al aproximarse al umbral de parada rápida.
-* **Trayectoria Compleja:** El gráfico lineal refleja la capacidad del planificador global para trazar esquinas ortogonales. El robot maniobra de forma asimétrica abriéndose paso en los bordes de las baldosas sin chocar gracias al soporte del Filtro de Kalman.
-
-**Nota:** Para adjuntar los gráficos en esta sección, importa las columnas `robot_x` y `robot_y` de tus archivos CSV en Excel, genera un gráfico de dispersión con líneas suavizadas, guárdalos como imágenes dentro de una carpeta llamada `images/` en tu repositorio y asegúrate de que los nombres coincidan con las rutas utilizadas en el README.
 
 ---
 
-## 9. Capturas, Gráficos y Videos
+# 7. Relación con los Laboratorios 1 y 2
 
-### Video Demostrativo del Proyecto
+## Laboratorio 1: Odometría Diferencial
 
-[Pega aquí el enlace a tu video de YouTube o Google Drive]
+El proyecto reutiliza directamente la odometría desarrollada anteriormente.
 
-*Asegúrate de que el video esté configurado como público u oculto con enlace compartido para que el corrector pueda visualizar al e-puck calculando el BFS en la terminal y deteniéndose completamente al llegar a la meta.*
+A partir de los encoders se calcula:
+
+[
+\Delta S_L=r\Delta\theta_L
+]
+
+[
+\Delta S_R=r\Delta\theta_R
+]
+
+El avance lineal del robot es:
+
+[
+\Delta S=\frac{\Delta S_R+\Delta S_L}{2}
+]
+
+y la variación angular:
+
+[
+\Delta \phi=\frac{\Delta S_R-\Delta S_L}{L}
+]
+
+donde:
+
+* Radio de rueda:
+
+[
+r=0.0205\ m
+]
+
+* Distancia entre ruedas:
+
+[
+L=0.053\ m
+]
+
+Con ello se actualiza continuamente la pose:
+
+[
+(x,y,\phi)
+]
+
+durante toda la navegación.
 
 ---
 
-## 10. Instrucciones para Ejecutar la Simulación
+## Laboratorio 2: Filtrado Sensorial
 
-1. Descarga o clona este repositorio:
+Las mediciones de distancia son suavizadas utilizando un filtro EMA:
+
+[
+EMA_t=\alpha EMA_{t-1}+(1-\alpha)z_t
+]
+
+con:
+
+[
+\alpha=0.85
+]
+
+Posteriormente se aplica un Filtro de Kalman de un estado utilizando:
+
+[
+Q=1.0
+]
+
+[
+R=15.0
+]
+
+La estimación obtenida es utilizada para la detección robusta de obstáculos y la activación del modo reactivo.
+
+---
+
+# 8. Resultados Obtenidos
+
+Las métricas se obtuvieron a partir del archivo:
+
+```text
+sensor_log.csv
+```
+
+exportado durante la simulación.
+
+| Métrica                   | Escenario Simple       | Escenario Complejo     |
+| ------------------------- | ---------------------- | ---------------------- |
+| Tiempo total de ejecución | Completar con medición | Completar con medición |
+| Waypoints recorridos      | Completar              | Completar              |
+| Error de llegada          | < 0.06 m               | < 0.06 m               |
+| Colisiones críticas       | 0                      | 0                      |
+| Estado final              | Detenido               | Detenido               |
+
+---
+
+## Análisis Cualitativo
+
+### Escenario Simple
+
+El robot genera una trayectoria óptima rodeando el obstáculo central y alcanza la meta sin colisiones.
+
+### Escenario Complejo
+
+La ruta calculada requiere múltiples cambios de dirección y seguimiento de corredores estrechos.
+
+La navegación reactiva permite corregir desviaciones y evitar impactos contra obstáculos laterales.
+
+---
+
+# 9. Capturas, Gráficos y Video
+
+## Video de Demostración
+
+Agregar enlace al video:
+
+```text
+[ENLACE AQUÍ]
+```
+
+---
+
+## Gráfico de Trayectoria
+
+Agregar imágenes obtenidas desde los datos registrados:
+
+```text
+images/trayectoria_simple.png
+images/trayectoria_compleja.png
+```
+
+---
+
+# 10. Instrucciones de Ejecución
+
+Clonar el repositorio:
 
 ```bash
-git clone https://github.com/TU_USUARIO/NOMBRE_REPOSITORIO.git
+git clone https://github.com/USUARIO/REPOSITORIO.git
 ```
 
-2. Abre el simulador **Webots (Versión 2026)**.
-3. Carga el escenario deseado desde:
+Abrir Webots.
+
+Abrir alguno de los mundos:
 
 ```text
-File → Open World
-```
-
-4. Selecciona:
-
-```text
-escenario_simple1.wbt
+worlds/escenario_simple.wbt
 ```
 
 o
 
 ```text
-escenario_complejo.wbt
+worlds/escenario_complejo.wbt
 ```
 
-5. En el editor de Webots abre:
+Compilar el controlador.
 
-```text
-controllers/e_puck_laboratorio_2/e_puck_laboratorio_2.c
-```
+Ejecutar la simulación.
 
-6. Haz clic en **Clean** y posteriormente en **Rebuild** para compilar el controlador.
-7. Presiona **Play** para iniciar la simulación.
+El controlador detectará automáticamente el escenario cargado y calculará la ruta BFS correspondiente.
 
 ---
 
-## 11. Conclusiones, Limitaciones y Mejoras
+# 11. Conclusiones
 
-### Conclusiones
+La implementación demostró que BFS permite obtener rutas óptimas en entornos discretizados, garantizando el menor número de celdas recorridas para alcanzar la meta.
 
-La implementación del algoritmo BFS integrado nativamente en C demostró cumplir con los principios de optimización en espacios discretizados, garantizando rutas con el menor número de baldosas transitadas. La combinación híbrida (control global BFS + control local reactivo) asegura que el e-puck responda exitosamente ante dinámicas complejas del mapa sin quedar atrapado.
+La combinación entre:
 
-### Limitaciones
+* planificación global mediante BFS,
+* odometría diferencial,
+* filtrado EMA,
+* filtro de Kalman,
+* y navegación reactiva basada en sensores,
 
-La odometría acumulativa basada en integración de Euler pura sufre de deriva cinemática a lo largo del tiempo debido al deslizamiento microscópico simulado de las ruedas sobre la superficie de Webots.
+permitió construir un sistema autónomo robusto capaz de operar exitosamente en distintos escenarios utilizando un único controlador.
 
-### Posibles Mejoras
-
-Incorporar un sensor de brújula (`Compass`) o un sistema de referencias externas (*Landmarks*) para implementar un **Filtro de Kalman Extendido (EKF)** capaz de corregir continuamente los desvíos acumulados en la pose:
-
-```text
-(x, y, φ)
-```
+Como trabajo futuro se propone incorporar algoritmos como A*, Dijkstra o SLAM para permitir planificación sobre mapas desconocidos y actualización dinámica de obstáculos.
