@@ -1,8 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdbool.h>
+#include <string.h>
 
+// Cabeceras oficiales y correctas de Webots
 #include <webots/robot.h>
+#include <webots/supervisor.h>
 #include <webots/motor.h>
 #include <webots/distance_sensor.h>
 #include <webots/position_sensor.h>
@@ -22,55 +26,171 @@
 #define PS_LEFT_SIDE 6
 #define PS_RIGHT_SIDE 1
 
-// Dimensiones físicas del robot para odometría
-#define WHEEL_RADIUS 0.0205 // Radio de la rueda (r)
-#define AXLE_LENGTH 0.053 // Distancia entre ruedas (L)
+// Dimensiones físicas para odometría (Laboratorio 1 y Sección 7)
+#define WHEEL_RADIUS 0.0205 
+#define AXLE_LENGTH 0.053   
 
-// Parámetros de control local y filtrado
-#define FRONT_THRESHOLD 400.0  
-#define CLEAR_THRESHOLD 150.0  
+// Parámetros de control local, histéresis y volteo
+#define FRONT_THRESHOLD 250.0   // Umbral de peligro para activar volteo/evasión
+#define CLEAR_THRESHOLD 120.0   // Umbral seguro para volver al camino global
 #define FORWARD_SPEED 4.0
-#define TURN_SPEED 2.5
-#define ALPHA 0.85
+#define TURN_SPEED 3.0
+#define ALPHA 0.85              // Filtro EMA
 
-// Parámetros del Filtro de Kalman
+// Parámetros del Filtro de Kalman (Laboratorio 2)
 #define Q 1.0
 #define R 15.0
 
-// ==========================================
-// ESTRUCTURAS PARA NAVEGACIÓN GLOBAL (PUNTOS)
-// ==========================================
+// Dimensiones de la arena 2x2m ajustada a la grilla física de 8x8 baldosas
+#define GRID_ROWS 8
+#define GRID_COLS 8
+#define GRID_RESOLUTION 0.25 // Cada celda mide exactamente 25x25 cm
+
+#define OFFSET_X -1.0
+#define OFFSET_Y -1.0
+
+int grilla_ocupacion[GRID_ROWS][GRID_COLS]; // Se llena dinámicamente según el mundo abierto
+
+typedef struct {
+  int r, c;
+} Celda;
+
 typedef struct {
   double x;
   double y;
-} Position2D;
+} Waypoint;
 
-// UN SOLO INICIO Y UNA SOLA META LEJANA
-Position2D punto_inicio = {0.0, 0.0};
-Position2D punto_meta   = {1.2, 1.2}; 
+#define MAX_PATH_SIZE 50
+Waypoint ruta_global[MAX_PATH_SIZE];
+int total_waypoints = 0;
+int waypoint_actual = 1;
 
+// ==========================================
+// MATRICES REALES DE 8x8 AJUSTADAS A TUS FOTOS
+// ==========================================
+int mapa_simple[GRID_ROWS][GRID_COLS] = {
+  {0, 0, 0, 0, 0, 0, 0, 0}, 
+  {0, 0, 0, 0, 0, 0, 0, 0}, 
+  {0, 0, 0, 0, 0, 0, 0, 0}, 
+  {0, 0, 0, 0, 0, 0, 0, 0}, 
+  {0, 0, 0, 1, 1, 0, 0, 0}, // Caja de madera central
+  {0, 0, 0, 1, 1, 0, 0, 0}, // Caja de madera central
+  {0, 0, 0, 0, 0, 0, 0, 0}, 
+  {0, 0, 0, 0, 0, 0, 0, 0}  
+};
+
+int mapa_complejo[GRID_ROWS][GRID_COLS] = {
+  {0, 0, 0, 0, 0, 0, 0, 0}, 
+  {0, 0, 0, 0, 0, 0, 0, 0}, 
+  {0, 0, 0, 0, 0, 0, 0, 0}, 
+  {0, 0, 0, 1, 1, 0, 0, 0}, // Caja de madera central
+  {0, 0, 0, 1, 1, 0, 0, 0}, // Caja de madera central
+  {0, 0, 0, 0, 0, 0, 0, 0}, 
+  {0, 1, 1, 0, 0, 0, 1, 1}, // Muros superiores laterales (izq y der)
+  {0, 1, 1, 0, 0, 0, 1, 1}  
+};
+
+// ==========================================
+// ALGORITMO BFS (PLANIFICADOR GLOBAL)
+// ==========================================
+bool calcular_planificacion_bfs(Celda inicio, Celda meta) {
+  bool visitado[GRID_ROWS][GRID_COLS] = {false};
+  Celda padre[GRID_ROWS][GRID_COLS];
+  
+  for(int i = 0; i < GRID_ROWS; i++) {
+    for(int j = 0; j < GRID_COLS; j++) {
+      padre[i][j] = (Celda){-1, -1};
+    }
+  }
+
+  Celda cola[GRID_ROWS * GRID_COLS];
+  int frente = 0, atras = 0;
+
+  cola[atras++] = inicio;
+  visitado[inicio.r][inicio.c] = true;
+
+  int dr[] = {-1, 1, 0, 0};
+  int dc[] = {0, 0, -1, 1};
+  bool meta_encontrada = false;
+
+  while (frente < atras) {
+    Celda actual = cola[frente++];
+
+    if (actual.r == meta.r && actual.c == meta.c) {
+      meta_encontrada = true;
+      break;
+    }
+
+    for (int i = 0; i < 4; i++) {
+      int nr = actual.r + dr[i];
+      int nc = actual.c + dc[i];
+
+      if (nr >= 0 && nr < GRID_ROWS && nc >= 0 && nc < GRID_COLS) {
+        if (!visitado[nr][nc] && grilla_ocupacion[nr][nc] == 0) {
+          visitado[nr][nc] = true;
+          padre[nr][nc] = actual;
+          cola[atras++] = (Celda){nr, nc};
+        }
+      }
+    }
+  }
+
+  if (!meta_encontrada) return false;
+
+  Celda camino_inverso[GRID_ROWS * GRID_COLS];
+  int pasos = 0;
+  Celda pasos_padre = meta;
+
+  while (pasos_padre.r != -1 && pasos_padre.c != -1) {
+    camino_inverso[pasos++] = pasos_padre;
+    pasos_padre = padre[pasos_padre.r][pasos_padre.c];
+  }
+
+  total_waypoints = 0;
+  for (int i = pasos - 1; i >= 0; i--) {
+    ruta_global[total_waypoints].x = (camino_inverso[i].c * GRID_RESOLUTION) + OFFSET_X + (GRID_RESOLUTION / 2.0);
+    ruta_global[total_waypoints].y = (camino_inverso[i].r * GRID_RESOLUTION) + OFFSET_Y + (GRID_RESOLUTION / 2.0);
+    total_waypoints++;
+  }
+
+  return true;
+}
+
+// ==========================================
+// FUNCIÓN PRINCIPAL MAIN
+// ==========================================
 int main(int argc, char **argv) {
+  
+  wb_robot_init(); // API oficial de Webots
 
-  // Inicialización de Webots
-  wb_robot_init();
+  // 1. DETECCIÓN AUTOMÁTICA USANDO LA FUNCIÓN CORRECTA DE ROBOT.H
+  const char *world_path = wb_robot_get_world_path();
+  printf("[SISTEMA] Archivo de mundo abierto detectado: %s\n", world_path);
 
-  // Configuración de Actuadores
+  if (world_path != NULL && strstr(world_path, "complejo") != NULL) {
+    printf("[MAPA] Cargando matriz del Escenario Complejo (8x8)...\n");
+    memcpy(grilla_ocupacion, mapa_complejo, sizeof(mapa_complejo));
+  } else {
+    printf("[MAPA] Cargando matriz del Escenario Simple (8x8)...\n");
+    memcpy(grilla_ocupacion, mapa_simple, sizeof(mapa_simple));
+  }
+
+  // Configuración de Motores
   WbDeviceTag motors[2];
   motors[LEFT] = wb_robot_get_device("left wheel motor");
   motors[RIGHT] = wb_robot_get_device("right wheel motor");
-
   wb_motor_set_position(motors[LEFT], INFINITY);
   wb_motor_set_position(motors[RIGHT], INFINITY);
   wb_motor_set_velocity(motors[LEFT], 0.0);
   wb_motor_set_velocity(motors[RIGHT], 0.0);
 
-  // Configuración de Encoders de Rueda
+  // Configuración de Encoders
   WbDeviceTag left_encoder = wb_robot_get_device("left wheel sensor");
   WbDeviceTag right_encoder = wb_robot_get_device("right wheel sensor");
   wb_position_sensor_enable(left_encoder, TIME_STEP);
   wb_position_sensor_enable(right_encoder, TIME_STEP);
 
-  // Inicialización del arreglo de 8 Sensores de Distancia
+  // Inicialización de Sensores de Distancia IR
   WbDeviceTag ps[8];
   char sensor_name[5];
   for (int i = 0; i < 8; i++) {
@@ -79,40 +199,50 @@ int main(int argc, char **argv) {
     wb_distance_sensor_enable(ps[i], TIME_STEP);
   }
 
-  // Variables heredadas del Laboratorio 2
+  // 2. PLANIFICACIÓN GLOBAL COMÚN PARA AMBOS MUNDOS
+  Celda celda_inicio = {1, 5}; 
+  Celda celda_meta   = {7, 4}; 
+
+  if (calcular_planificacion_bfs(celda_inicio, celda_meta)) {
+    printf("[PLANIFICADOR] ¡Camino BFS resuelto con éxito! Waypoints calculados: %d\n", total_waypoints);
+  } else {
+    printf("[ERROR] No hay camino viable para resolver la grilla.\n");
+    wb_robot_cleanup();
+    return -1;
+  }
+
+  // Variables de filtrado y Kalman
   double prev_left_enc = 0.0;
   double prev_right_enc = 0.0;
   double filtered_front = 0.0;
   double estimated_distance = 0.0;
   double P = 1.0;
 
-  // Variables de odometría plana
-  double robot_x = punto_inicio.x;
-  double robot_y = punto_inicio.y;
-  double robot_phi = 0.0; 
+  // Pose inicial
+  double robot_x = ruta_global[0].x;
+  double robot_y = ruta_global[0].y;
+  double robot_phi = 1.57; // 90 grados apuntando hacia arriba
 
   bool meta_alcanzada = false;
   bool evadiendo = false; 
 
-  // Paso inicial para sincronizar encoders
   wb_robot_step(TIME_STEP);
   prev_left_enc = wb_position_sensor_get_value(left_encoder);
   prev_right_enc = wb_position_sensor_get_value(right_encoder);
 
-  // Archivo log CSV para telemetría
   FILE *log_file = fopen("sensor_log.csv", "w");
-  fprintf(log_file, "time,robot_x,robot_y,robot_phi,front_estimated,meta_alcanzada\n");
+  fprintf(log_file, "time,robot_x,robot_y,robot_phi,front_estimated,waypoint_idx\n");
 
   printf("==================================================\n");
-  printf("PROYECTO FINAL: MODO DIRECTO (INICIO -> META ÚNICA)\n");
+  printf("PROYECTO FINAL: MODO AUTOMÁTICO BFS CONFIGURADO\n");
   printf("==================================================\n");
 
   // ==========================================
-  // BUCLE DE EJECUCIÓN PRINCIPAL
+  // BUCLE DE SIMULACIÓN PRINCIPAL
   // ==========================================
   while (wb_robot_step(TIME_STEP) != -1) {
 
-    // 1. FILTRADO Y KALMAN
+    // A. LECTURAS Y FILTRADO KALMAN
     double front_left = wb_distance_sensor_get_value(ps[PS_LEFT_FRONT]);
     double front_right = wb_distance_sensor_get_value(ps[PS_RIGHT_FRONT]);
     double left_side = wb_distance_sensor_get_value(ps[PS_LEFT_SIDE]);
@@ -140,39 +270,41 @@ int main(int argc, char **argv) {
     estimated_distance = predicted_distance + K * (filtered_front - predicted_distance);
     P = (1.0 - K) * P_pred;
 
-    // 2. ACTUALIZACIÓN DE ODOMETRÍA COMPLETA
+    // B. ACTUALIZACIÓN DE ODOMETRÍA DIRECTA
     double d_phi = (dist_right - dist_left) / AXLE_LENGTH;
-    
     robot_x += robot_advance * cos(robot_phi + d_phi / 2.0);
     robot_y += robot_advance * sin(robot_phi + d_phi / 2.0);
     robot_phi += d_phi;
-
     robot_phi = atan2(sin(robot_phi), cos(robot_phi));
 
-    // 3. CONDICIÓN DE PARADA EN META
+    // C. CONTROL DE PARADA EN META DEFINITIVA
     if (meta_alcanzada) {
       wb_motor_set_velocity(motors[LEFT], 0.0);
       wb_motor_set_velocity(motors[RIGHT], 0.0);
-      
       static bool mensaje_impreso = false;
       if (!mensaje_impreso) {
-        printf("\n>>> [¡META FINAL ALCANZADA!] Deteniendo motores por completo. <<<\n\n");
+        printf("\n>>> [¡META FINAL ALCANZADA POR BFS!] Motores detenidos. <<<\n\n");
         mensaje_impreso = true;
       }
       continue; 
     }
 
-    // Calcular distancia escalar a la meta única
-    double distancia_a_meta = sqrt(pow(punto_meta.x - robot_x, 2) + pow(punto_meta.y - robot_y, 2));
+    double target_x = ruta_global[waypoint_actual].x;
+    double target_y = ruta_global[waypoint_actual].y;
+    double distancia_al_target = sqrt(pow(target_x - robot_x, 2) + pow(target_y - robot_y, 2));
 
-    if (distancia_a_meta < 0.05) {
-      meta_alcanzada = true;
-      continue;
+    if (distancia_al_target < 0.06) {
+      if (waypoint_actual < total_waypoints - 1) {
+        waypoint_actual++;
+      } else {
+        meta_alcanzada = true;
+        continue;
+      }
     }
 
-    // 4. PLANIFICACIÓN LOCAL HÍBRIDA
-    double angulo_a_meta = atan2(punto_meta.y - robot_y, punto_meta.x - robot_x);
-    double error_angular = angulo_a_meta - robot_phi;
+    // D. NAVEGACIÓN LOCAL CON VOLTEO ANTE PAREDES
+    double angulo_al_target = atan2(target_y - robot_y, target_x - robot_x);
+    double error_angular = angulo_al_target - robot_phi;
     error_angular = atan2(sin(error_angular), cos(error_angular)); 
 
     double left_speed = 0.0;
@@ -185,29 +317,28 @@ int main(int argc, char **argv) {
     }
 
     if (evadiendo) {
-      printf("[EVASIÓN] Pared detectada. Buscando salida lateral...\n");
-
+      printf("[ALERTA-PARED] Volteando de frente. Kalman: %.2f\n", estimated_distance);
+      
       if (left_side > right_side) {
-        left_speed = TURN_SPEED * 1.3;
-        right_speed = -TURN_SPEED * 0.3;
+        left_speed = TURN_SPEED;
+        right_speed = -TURN_SPEED;
       } else if (right_side > left_side) {
-        left_speed = -TURN_SPEED * 0.3;
-        right_speed = TURN_SPEED * 1.3;
+        left_speed = -TURN_SPEED;
+        right_speed = TURN_SPEED;
       } else {
         if (error_angular > 0) {
-          left_speed = -TURN_SPEED * 0.6;
-          right_speed = TURN_SPEED * 1.2;
+          left_speed = -TURN_SPEED;
+          right_speed = TURN_SPEED;
         } else {
-          left_speed = TURN_SPEED * 1.2;
-          right_speed = -TURN_SPEED * 0.6;
+          left_speed = TURN_SPEED;
+          right_speed = -TURN_SPEED;
         }
       }
     } else {
-      // CONTROL PROPORCIONAL DE RUMBO DIRECTO
-      double Kp_angular = 5.0;
+      double Kp_angular = 6.0;
       double velocidad_base = 4.5;
 
-      if (fabs(error_angular) > 0.5) {
+      if (fabs(error_angular) > 0.4) {
         left_speed = -TURN_SPEED * (error_angular > 0 ? 1 : -1);
         right_speed = TURN_SPEED * (error_angular > 0 ? 1 : -1);
       } else {
@@ -224,10 +355,7 @@ int main(int argc, char **argv) {
 
     double current_time = wb_robot_get_time();
     fprintf(log_file, "%f,%f,%f,%f,%f,%d\n",
-            current_time, robot_x, robot_y, robot_phi, estimated_distance, meta_alcanzada);
-
-    printf("Posición: X:%.2f Y:%.2f | Dist. Meta: %.2f m\n",
-           robot_x, robot_y, distancia_a_meta);
+            current_time, robot_x, robot_y, robot_phi, estimated_distance, waypoint_actual);
   }
 
   fclose(log_file);
